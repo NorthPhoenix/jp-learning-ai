@@ -1,29 +1,15 @@
-# Create T3 App
+# MVP
 
-This is a [T3 Stack](https://create.t3.gg/) project bootstrapped with `create-t3-app`.
-
-## What's next? How do I make an app with this?
-
-We try to keep this project as simple as possible, so you can start with just the scaffolding we set up for you, and add additional things later when they become necessary.
-
-If you are not familiar with the different technologies used in this project, please refer to the respective docs. If you still are in the wind, please join our [Discord](https://t3.gg/discord) and ask for help.
-
-- [Next.js](https://nextjs.org)
-- [NextAuth.js](https://next-auth.js.org)
-- [Prisma](https://prisma.io)
-- [Drizzle](https://orm.drizzle.team)
-- [Tailwind CSS](https://tailwindcss.com)
-- [tRPC](https://trpc.io)
-
-## Learn More
-
-To learn more about the [T3 Stack](https://create.t3.gg/), take a look at the following resources:
-
-- [Documentation](https://create.t3.gg/)
-- [Learn the T3 Stack](https://create.t3.gg/en/faq#what-learning-resources-are-currently-available) — Check out these awesome tutorials
-
-You can check out the [create-t3-app GitHub repository](https://github.com/t3-oss/create-t3-app) — your feedback and contributions are welcome!
-
-## How do I deploy this?
-
-Follow our deployment guides for [Vercel](https://create.t3.gg/en/deployment/vercel), [Netlify](https://create.t3.gg/en/deployment/netlify) and [Docker](https://create.t3.gg/en/deployment/docker) for more information.
+1. Have conversations with the AI in the mix of Japanese and English language
+   - English speakers learning Japanese
+   - AI has to be able to talk in two languages in the same sentence
+2. The AI will have an updating memory of your Japanese speaking ability, and it will be able to leverage that knowledge to create effective lesson plans
+   - **What user knows**
+     - The words, conjugations and concepts you know/learned
+   - **Lesson history**
+     - Your recent (or all?) study sessions and topics you’ve discussed with the AI
+   - **Challenging topics / words**
+     - The words/topics you have struggled with or asked clarifications on in the past
+     - Topics that you have learned but had to ask clarification on in the past, marking them as challenging topics for you
+3. AI will have a context of your Japanese learning goal and will structure long-term learning plans based on it
+   - Follow pre-programmed lesson plans from the web

@@ -13,15 +13,15 @@ export function MicrophoneOrb({ state, onClick }: MicrophoneOrbProps) {
   return (
     <button
       onClick={onClick}
-      className="group relative flex items-center justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+      className="group focus-visible:ring-ring relative flex items-center justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
       aria-label={`Microphone ${state}`}
     >
       {/* Outer glow rings */}
       {state === "listening" && (
         <>
-          <div className="absolute h-48 w-48 rounded-full bg-sakura/20 animate-breathing" />
+          <div className="bg-sakura/20 animate-breathing absolute h-48 w-48 rounded-full" />
           <div
-            className="absolute h-40 w-40 rounded-full bg-sakura/30 animate-breathing"
+            className="bg-sakura/30 animate-breathing absolute h-40 w-40 rounded-full"
             style={{ animationDelay: "0.3s" }}
           />
         </>
@@ -29,16 +29,16 @@ export function MicrophoneOrb({ state, onClick }: MicrophoneOrbProps) {
 
       {/* Processing ring */}
       {state === "processing" && (
-        <div className="absolute h-44 w-44 rounded-full border-2 border-t-sakura border-r-sakura border-b-transparent border-l-transparent animate-spin-slow" />
+        <div className="border-t-sakura border-r-sakura animate-spin-slow absolute h-44 w-44 rounded-full border-2 border-b-transparent border-l-transparent" />
       )}
 
       {/* Speaking waveform */}
       {state === "speaking" && (
         <div className="absolute flex items-center justify-center gap-1">
-          {[...Array({length: 5})].map((_, i) => (
+          {[...Array({ length: 5 })].map((_, i) => (
             <div
               key={i}
-              className="w-1 h-16 bg-sakura rounded-full animate-waveform"
+              className="bg-sakura animate-waveform h-16 w-1 rounded-full"
               style={{
                 animationDelay: `${i * 0.1}s`,
                 height: `${40 + i * 8}px`,
@@ -52,9 +52,9 @@ export function MicrophoneOrb({ state, onClick }: MicrophoneOrbProps) {
       <div
         className={cn(
           "relative z-10 flex h-32 w-32 items-center justify-center rounded-full transition-all duration-300",
-          "bg-gradient-to-br from-card to-sakura-light shadow-2xl",
+          "from-card to-sakura-light bg-gradient-to-br shadow-2xl",
           state === "idle" && "animate-pulse-glow",
-          state === "listening" && "scale-110 shadow-sakura/50",
+          state === "listening" && "shadow-sakura/50 scale-110",
           state === "processing" && "scale-105",
           state === "speaking" && "scale-105 opacity-90",
         )}
@@ -65,13 +65,13 @@ export function MicrophoneOrb({ state, onClick }: MicrophoneOrbProps) {
             state === "idle" && "text-muted-foreground",
             state === "listening" && "text-sakura",
             state === "processing" && "text-sakura",
-            state === "speaking" && "text-sakura"
+            state === "speaking" && "text-sakura",
           )}
         />
       </div>
 
       {/* Subtle hint text */}
-      <div className="absolute -bottom-12 text-sm text-muted-foreground">
+      <div className="text-muted-foreground absolute -bottom-12 text-sm">
         {state === "idle" && "Tap to speak"}
         {state === "listening" && "Listening..."}
         {state === "processing" && "Processing..."}

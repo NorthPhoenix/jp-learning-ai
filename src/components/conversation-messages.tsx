@@ -18,16 +18,16 @@ export function ConversationMessages({ messages, isAISpeaking }: ConversationMes
   }
 
   return (
-    <div className="w-full max-w-2xl space-y-4 mb-8">
+    <div className="mb-8 w-full max-w-2xl space-y-4">
       {/* AI Speaking Indicator */}
       {isAISpeaking && (
-        <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground animate-fade-slide-up">
-          <Volume2 className="h-4 w-4 text-sakura" />
+        <div className="text-muted-foreground animate-fade-slide-up flex items-center justify-center gap-2 text-sm">
+          <Volume2 className="text-sakura h-4 w-4" />
           <div className="flex gap-1">
-            {[...Array({length: 3})].map((_, i) => (
+            {[...Array({ length: 3 })].map((_, i) => (
               <div
                 key={i}
-                className="w-1 h-3 bg-sakura rounded-full animate-waveform"
+                className="bg-sakura animate-waveform h-3 w-1 rounded-full"
                 style={{ animationDelay: `${i * 0.15}s` }}
               />
             ))}
@@ -40,14 +40,14 @@ export function ConversationMessages({ messages, isAISpeaking }: ConversationMes
         {messages.slice(-4).map((message, index) => (
           <div key={message.id} className="animate-fade-slide-up" style={{ animationDelay: `${index * 0.1}s` }}>
             {message.type === "ai" ? (
-              <div className="flex flex-col gap-2 rounded-2xl bg-card/60 backdrop-blur-glass p-4 shadow-lg">
+              <div className="bg-card/60 backdrop-blur-glass flex flex-col gap-2 rounded-2xl p-4 shadow-lg">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1">
                     {message.japanese && (
-                      <p className="text-lg font-medium text-foreground leading-relaxed">{message.japanese}</p>
+                      <p className="text-foreground text-lg leading-relaxed font-medium">{message.japanese}</p>
                     )}
                     {showTranslation[message.id] && (
-                      <p className="mt-2 text-sm text-muted-foreground leading-relaxed">{message.english}</p>
+                      <p className="text-muted-foreground mt-2 text-sm leading-relaxed">{message.english}</p>
                     )}
                   </div>
                   <div className="flex gap-1">
@@ -55,13 +55,13 @@ export function ConversationMessages({ messages, isAISpeaking }: ConversationMes
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-7 w-7 rounded-full hover:bg-muted/50"
+                        className="hover:bg-muted/50 h-7 w-7 rounded-full"
                         onClick={() => toggleTranslation(message.id)}
                       >
                         <span className="text-xs">EN</span>
                       </Button>
                     )}
-                    <Button variant="ghost" size="icon" className="h-7 w-7 rounded-full hover:bg-muted/50">
+                    <Button variant="ghost" size="icon" className="hover:bg-muted/50 h-7 w-7 rounded-full">
                       <Play className="h-3 w-3" />
                     </Button>
                   </div>
@@ -69,8 +69,8 @@ export function ConversationMessages({ messages, isAISpeaking }: ConversationMes
               </div>
             ) : (
               <div className="flex justify-end">
-                <div className="rounded-2xl bg-muted/40 backdrop-blur-glass px-4 py-3 shadow-md max-w-[80%]">
-                  <p className="text-sm text-muted-foreground leading-relaxed">{message.english}</p>
+                <div className="bg-muted/40 backdrop-blur-glass max-w-[80%] rounded-2xl px-4 py-3 shadow-md">
+                  <p className="text-muted-foreground text-sm leading-relaxed">{message.english}</p>
                 </div>
               </div>
             )}

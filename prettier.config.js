@@ -2,6 +2,7 @@
 const config = {
   plugins: ["prettier-plugin-tailwindcss"],
   semi: false,
+  printWidth: 120, // Increase from default 80 to allow longer lines
 }
 
 export default config;

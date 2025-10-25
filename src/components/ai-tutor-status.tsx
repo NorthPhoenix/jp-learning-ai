@@ -6,12 +6,12 @@ interface AITutorStatusProps {
 
 export function AITutorStatus({ isActive }: AITutorStatusProps) {
   return (
-    <div className="absolute top-20 left-1/2 -translate-x-1/2 z-40">
-      <div className="flex items-center gap-3 rounded-full bg-card/60 backdrop-blur-glass px-5 py-3 shadow-lg">
+    <div className="absolute top-20 left-1/2 z-40 -translate-x-1/2">
+      <div className="bg-card/60 backdrop-blur-glass flex items-center gap-3 rounded-full px-5 py-3 shadow-lg">
         {/* Breathing dot indicator */}
         <div className="relative flex items-center justify-center">
           <div
-            className={`h-2 w-2 rounded-full bg-sakura transition-all duration-300 ${
+            className={`bg-sakura h-2 w-2 rounded-full transition-all duration-300 ${
               isActive ? "animate-breathing" : ""
             }`}
           />
@@ -19,8 +19,8 @@ export function AITutorStatus({ isActive }: AITutorStatusProps) {
 
         {/* Status text */}
         <div className="text-sm">
-          <p className="font-medium text-foreground">今日は発音を練習しましょう</p>
-          <p className="text-xs text-muted-foreground">Let&apos;s practice pronunciation today</p>
+          <p className="text-foreground font-medium">今日は発音を練習しましょう</p>
+          <p className="text-muted-foreground text-xs">Let&apos;s practice pronunciation today</p>
         </div>
       </div>
     </div>

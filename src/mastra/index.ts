@@ -1,11 +1,11 @@
 import { Mastra } from "@mastra/core/mastra"
 import { PinoLogger } from "@mastra/loggers"
 import { LibSQLStore } from "@mastra/libsql"
-import { weatherAgent } from "./agents/weather-agent"
+import { japaneseTutorAgent } from "./agents/japanese-tutor-agent"
 
-export const mastra = new Mastra({
+const mastra = new Mastra({
   workflows: {},
-  agents: { weatherAgent },
+  agents: { japaneseTutorAgent },
   storage: new LibSQLStore({
     // stores observability, scores, ... into memory storage, if it needs to persist, change to file:../mastra.db
     url: ":memory:",
@@ -23,3 +23,5 @@ export const mastra = new Mastra({
     default: { enabled: true },
   },
 })
+
+export default mastra

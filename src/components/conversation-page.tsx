@@ -19,7 +19,6 @@ export interface Message {
 }
 
 export default function ConversationPage() {
-  const [micState, setMicState] = useState<MicState>("idle")
   const [isPanelOpen, setIsPanelOpen] = useState(false)
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -31,62 +30,40 @@ export default function ConversationPage() {
     },
   ])
 
+  const voice = { micState: "idle" as MicState }
+
   const handleMicClick = () => {
-    if (micState === "idle") {
-      setMicState("listening")
-      // Simulate voice interaction flow
-      setTimeout(() => setMicState("processing"), 2000)
-      setTimeout(() => {
-        setMicState("speaking")
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: Date.now().toString(),
-            type: "user",
-            english: "I want to practice ordering food at a restaurant",
-            timestamp: new Date(),
-          },
-          {
-            id: (Date.now() + 1).toString(),
-            type: "ai",
-            japanese: "いいですね！レストランで注文する練習をしましょう。",
-            english: "Great! Let's practice ordering at a restaurant.",
-            timestamp: new Date(),
-          },
-        ])
-      }, 3000)
-      setTimeout(() => setMicState("idle"), 5000)
-    }
+    console.log("handleMicClick")
   }
 
   return (
-    <div className="relative h-screen w-full overflow-hidden bg-gradient-to-b from-background via-background to-sakura-light/10">
+    <div className="from-background via-background to-sakura-light/10 relative h-screen w-full overflow-hidden bg-linear-to-b">
       {/* Top Bar */}
-      <header className="absolute top-0 left-0 right-0 z-50 flex items-center justify-between px-6 py-4">
+      <header className="absolute top-0 right-0 left-0 z-50 flex items-center justify-between px-6 py-4">
         <div className="flex items-center gap-2">
-          <div className="text-lg font-medium tracking-tight text-foreground">日本語 AI</div>
+          <div className="text-foreground text-lg font-medium tracking-tight">日本語 AI</div>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full hover:bg-muted/50">
+          <Button variant="ghost" size="icon" className="hover:bg-muted/50 h-9 w-9 rounded-full">
             <Settings className="h-4 w-4" />
           </Button>
-          <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full hover:bg-muted/50">
+          <Button variant="ghost" size="icon" className="hover:bg-muted/50 h-9 w-9 rounded-full">
             <User className="h-4 w-4" />
           </Button>
         </div>
       </header>
 
       {/* AI Tutor Status */}
-      <AITutorStatus isActive={micState === "speaking"} />
+      <AITutorStatus isActive={voice.micState === "speaking"} />
 
       {/* Main Content */}
-      <main className="flex h-full flex-col items-center justify-center px-6 pb-32 pt-24">
+      <main className="flex h-full flex-col items-center justify-center px-6 pt-24 pb-32">
         {/* Conversation Messages */}
-        <ConversationMessages messages={messages} isAISpeaking={micState === "speaking"} />
+        <ConversationMessages messages={messages} isAISpeaking={voice.micState === "speaking"} />
 
         {/* Microphone Orb */}
         <div className="mt-auto">
-          <MicrophoneOrb state={micState} onClick={handleMicClick} />
+          <MicrophoneOrb state={voice.micState} onClick={handleMicClick} />
         </div>
       </main>
 
@@ -94,7 +71,7 @@ export default function ConversationPage() {
       <Button
         variant="ghost"
         size="icon"
-        className="absolute bottom-8 right-8 h-12 w-12 rounded-full bg-card/80 backdrop-blur-glass shadow-lg hover:bg-card"
+        className="bg-card/80 backdrop-blur-glass hover:bg-card absolute right-8 bottom-8 h-12 w-12 rounded-full shadow-lg"
         onClick={() => setIsPanelOpen(!isPanelOpen)}
       >
         <Menu className="h-5 w-5" />

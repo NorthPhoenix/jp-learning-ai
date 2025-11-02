@@ -1,0 +1,25 @@
+{
+  "name": "@repo/mastra",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "clean": "rm -rf .turbo node_modules"
+  },
+  "dependencies": {
+    "@ai-sdk/openai": "^2.0.53",
+    "@mastra/core": "^0.23.1",
+    "@mastra/loggers": "^0.10.18",
+    "@mastra/memory": "^0.15.9",
+    "@mastra/pg": "^0.17.7",
+    "@mastra/voice-openai-realtime": "^0.11.11",
+    "zod": "^3.25.6"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.23",
+    "typescript": "^5.9.3"
+  }
+}

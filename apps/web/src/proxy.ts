@@ -1,6 +1,6 @@
 import { clerkMiddleware } from "@clerk/nextjs/server"
 
-export default clerkMiddleware(async (auth, req) => {
+export default clerkMiddleware(async (auth) => {
   const { isAuthenticated, redirectToSignIn } = await auth()
 
   if (!isAuthenticated) {
@@ -12,9 +12,11 @@ export default clerkMiddleware(async (auth, req) => {
 
 export const config = {
   matcher: [
-    // Skip Next.js internals and all static files, unless found in search params
-    "/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
-    // Always run for API routes
+    // Run for all paths except those with a file extension or Next.js internals
+    "/((?!.+\\.[\\w]+$|_next).*)",
+    // Explicitly include the root path
+    "/",
+    // Always run for API and tRPC routes
     "/(api|trpc)(.*)",
   ],
 }

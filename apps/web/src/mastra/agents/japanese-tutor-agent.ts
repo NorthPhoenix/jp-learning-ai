@@ -1,5 +1,7 @@
 import { openai } from "@ai-sdk/openai"
 import { Agent } from "@mastra/core/agent"
+import { Memory } from "@mastra/memory"
+import { PostgresStore } from "@mastra/pg"
 import { OpenAIRealtimeVoice } from "@mastra/voice-openai-realtime"
 
 export const japaneseTutorAgent = new Agent({
@@ -24,6 +26,16 @@ export const japaneseTutorAgent = new Agent({
     - Be patient and supportive
   `,
   model: openai("gpt-5-nano"),
+  memory: new Memory({
+    storage: new PostgresStore({
+      connectionString: process.env.DATABASE_URL!,
+    }),
+    options: {
+      threads: {
+        generateTitle: true,
+      },
+    },
+  }),
   voice: new OpenAIRealtimeVoice({
     model: "gpt-realtime-mini",
     speaker: "shimmer", // A clear, friendly voice

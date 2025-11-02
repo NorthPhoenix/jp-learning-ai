@@ -7,30 +7,27 @@ A monorepo containing a Japanese language learning application with voice-enable
 ```
 jp-learning-ai/
 ├── apps/
-│   ├── web/                    # Next.js frontend (deployed to Vercel)
-│   └── mastra-backend/         # Mastra AI backend (deployed to Mastra Cloud)
+│   └── web/                    # Next.js app with integrated Mastra AI (deployed to Vercel)
 ├── packages/
 │   └── database/               # Shared Prisma database schema
 ├── pnpm-workspace.yaml         # pnpm workspace configuration
+├── turbo.json                  # Turborepo configuration
 └── package.json                # Root workspace package.json
 ```
 
 ## Tech Stack
 
-### Frontend (`apps/web`)
+### Web App (`apps/web`)
 
 - **Next.js 16** with App Router
 - **React 19**
 - **tRPC** for type-safe API calls
 - **Tailwind CSS** with Radix UI components
 - **TypeScript**
-
-### Backend (`apps/mastra-backend`)
-
-- **Mastra** AI framework
-- **OpenAI Realtime Voice API** for voice interactions
-- **GPT-5 Nano** for agent reasoning
-- Voice-enabled Japanese language tutoring agent
+- **Mastra** AI framework (integrated)
+  - **OpenAI Realtime Voice API** for voice interactions
+  - **GPT-5 Nano** for agent reasoning
+  - Voice-enabled Japanese language tutoring agent
 
 ### Shared Packages
 
@@ -57,14 +54,8 @@ For the web app (`apps/web/.env`):
 
 ```env
 DATABASE_URL=
-# ... other Next.js env vars
-```
-
-For the Mastra backend (`apps/mastra-backend/.env`):
-
-```env
 OPENAI_API_KEY=
-DATABASE_URL=  # if needed
+NODE_ENV=development
 ```
 
 3. Generate Prisma client:
@@ -90,11 +81,8 @@ pnpm dev
 Run individual apps:
 
 ```bash
-# Web frontend only
+# Web app only
 pnpm dev:web
-
-# Mastra backend only
-pnpm dev:mastra
 ```
 
 ### Building
@@ -143,39 +131,36 @@ pnpm clean
 
 ### Web App (Vercel)
 
-The Next.js frontend in `apps/web/` can be deployed to Vercel:
+The Next.js app in `apps/web/` with integrated Mastra AI can be deployed to Vercel:
 
 1. Connect your GitHub repository to Vercel
 2. Set the root directory to `apps/web`
-3. Configure environment variables
+3. Configure environment variables (DATABASE_URL, OPENAI_API_KEY, etc.)
 4. Deploy
 
-### Mastra Backend (Mastra Cloud)
-
-The Mastra backend in `apps/mastra-backend/` can be deployed to Mastra Cloud:
-
-1. Follow Mastra Cloud deployment documentation
-2. Configure environment variables (OPENAI_API_KEY, etc.)
-3. Deploy using Mastra CLI
+The Mastra AI functionality is integrated directly into the Next.js app using server actions and API routes.
 
 ## Monorepo Management
 
-This is a basic monorepo using pnpm workspaces. Key features:
+This monorepo uses **pnpm workspaces** and **Turborepo** for efficient task orchestration and caching:
 
 - **Workspace dependencies**: Use `workspace:*` protocol for internal packages
-- **Parallel execution**: Commands run across all packages with `-r --parallel`
+- **Parallel execution**: Turborepo runs tasks across packages in parallel
+- **Task caching**: Turborepo caches build outputs for faster subsequent runs
 - **Filtering**: Use `--filter` to run commands in specific packages
 - **Shared code**: The `@repo/database` package is shared between apps
 
-### Next Steps (Optional)
+### Turborepo Tasks
 
-To add Turborepo for improved caching and task orchestration:
+The project includes Turborepo tasks configured in `turbo.json`:
 
-```bash
-pnpm add turbo -D -w
-```
-
-Then create a `turbo.json` configuration file for pipeline management.
+- `build`: Builds all apps with dependency management
+- `dev`: Runs development servers (persistent, no cache)
+- `lint` / `lint:fix`: Lints codebase
+- `typecheck`: Type checks TypeScript code
+- `db:generate`: Generates Prisma client
+- `db:push` / `db:migrate`: Database management
+- `db:studio`: Opens Prisma Studio
 
 ## Learn More
 

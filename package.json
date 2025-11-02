@@ -8,10 +8,11 @@
     "packages/*"
   ],
   "scripts": {
+    "preinstall": "npx only-allow pnpm",
+    "postinstall": "turbo db:generate",
     "build": "turbo build",
     "dev": "turbo dev",
     "dev:web": "turbo dev --filter=web",
-    "dev:mastra": "turbo dev --filter=mastra-backend",
     "lint": "turbo lint",
     "lint:fix": "turbo lint:fix",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,mdx}\" --cache",

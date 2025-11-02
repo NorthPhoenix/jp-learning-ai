@@ -3,7 +3,17 @@
   "tasks": {
     "build": {
       "dependsOn": [
-        "^build"
+        "^build",
+        "^db:generate"
+      ],
+      "env": [
+        "DATABASE_URL",
+        "NODE_ENV",
+        "OPENAI_API_KEY"
+      ],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        ".env*"
       ],
       "outputs": [
         ".next/**",
@@ -38,11 +48,15 @@
       "cache": false
     },
     "db:migrate": {
-      "cache": false
+      "cache": false,
+      "persistent": true
     },
     "db:studio": {
       "cache": false,
       "persistent": true
+    },
+    "db:deploy": {
+      "cache": false
     }
   }
 }

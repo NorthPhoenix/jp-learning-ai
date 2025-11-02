@@ -2,8 +2,10 @@ import "~/styles/globals.css"
 
 import { type Metadata } from "next"
 import { Geist, Geist_Mono, Noto_Sans_JP } from "next/font/google"
+import { ClerkProvider } from "@clerk/nextjs"
 
 import { TRPCReactProvider } from "~/trpc/react"
+import { Navbar } from "~/components/navbar"
 
 const _geist = Geist({ subsets: ["latin"], variable: "--font-geist-sans" })
 const _geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono" })
@@ -21,13 +23,16 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html
-      lang="en"
-      className={`${_geist.variable} ${_geistMono.variable} ${_notoSansJP.variable} antialiased`}
-    >
-      <body>
-        <TRPCReactProvider>{children}</TRPCReactProvider>
-      </body>
-    </html>
+    <ClerkProvider>
+      <html
+        lang="en"
+        className={`${_geist.variable} ${_geistMono.variable} ${_notoSansJP.variable} antialiased`}
+      >
+        <body>
+          <Navbar />
+          <TRPCReactProvider>{children}</TRPCReactProvider>
+        </body>
+      </html>
+    </ClerkProvider>
   )
 }

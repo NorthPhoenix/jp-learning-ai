@@ -12,7 +12,13 @@ interface MicrophoneOrbProps {
 export function MicrophoneOrb({ state, onClick }: MicrophoneOrbProps) {
   return (
     <button
-      onClick={onClick}
+      type="button"
+      onClick={(e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        console.log("MicrophoneOrb clicked, state:", state)
+        onClick()
+      }}
       className="focus-visible:ring-ring group relative flex items-center justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
       aria-label={`Microphone ${state}`}
     >

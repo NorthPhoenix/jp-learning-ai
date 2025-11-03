@@ -10,7 +10,8 @@ export const env = createEnv({
     DATABASE_URL: z.string().url(),
     NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
     OPENAI_API_KEY: z.string().min(1),
-    CLERK_SECRET_KEY: z.string().optional(),
+    CLERK_SECRET_KEY: z.string(),
+    CLERK_SIGN_IN_URL: z.string(),
   },
 
   /**
@@ -19,7 +20,8 @@ export const env = createEnv({
    * `NEXT_PUBLIC_`.
    */
   client: {
-    NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: z.string().optional(),
+    NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: z.string(),
+    NEXT_PUBLIC_WEBSOCKET_SERVER_URL: z.string().url().optional(),
   },
 
   /**
@@ -32,6 +34,8 @@ export const env = createEnv({
     OPENAI_API_KEY: process.env.OPENAI_API_KEY,
     CLERK_SECRET_KEY: process.env.CLERK_SECRET_KEY,
     NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,
+    NEXT_PUBLIC_WEBSOCKET_SERVER_URL: process.env.NEXT_PUBLIC_WEBSOCKET_SERVER_URL,
+    CLERK_SIGN_IN_URL: process.env.CLERK_SIGN_IN_URL
   },
   /**
    * Run `build` or `dev` with `SKIP_ENV_VALIDATION` to skip env validation. This is especially

@@ -9,7 +9,6 @@
   ],
   "scripts": {
     "preinstall": "npx only-allow pnpm",
-    "postinstall": "turbo db:generate",
     "build": "turbo build",
     "dev": "turbo dev",
     "dev:web": "turbo dev --filter=web",

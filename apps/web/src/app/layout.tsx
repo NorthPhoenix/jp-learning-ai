@@ -6,6 +6,7 @@ import { ClerkProvider } from "@clerk/nextjs"
 
 import { TRPCReactProvider } from "~/trpc/react"
 import { Navbar } from "~/components/navbar"
+import { Toaster } from "~/components/ui/sonner"
 
 const _geist = Geist({ subsets: ["latin"], variable: "--font-geist-sans" })
 const _geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono" })
@@ -31,6 +32,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <body>
           <Navbar />
           <TRPCReactProvider>{children}</TRPCReactProvider>
+          <Toaster position="bottom-right" />
         </body>
       </html>
     </ClerkProvider>

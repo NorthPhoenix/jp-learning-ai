@@ -1,7 +1,8 @@
 "use client"
 
-import { useState, useRef, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Menu } from "lucide-react"
+import { toast } from "sonner"
 import { Button } from "~/components/ui/button"
 import { MicrophoneOrb } from "~/components/microphone-orb"
 import { ConversationMessages } from "~/components/conversation-messages"
@@ -21,7 +22,7 @@ export interface Message {
 
 export default function ConversationPage() {
   const [isPanelOpen, setIsPanelOpen] = useState(false)
-  const [messages, setMessages] = useState<Message[]>([
+  const [messages] = useState<Message[]>([
     {
       id: "1",
       type: "ai",
@@ -30,142 +31,75 @@ export default function ConversationPage() {
       timestamp: new Date(),
     },
   ])
-  const [micState, setMicState] = useState<MicState>("idle")
 
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
-  const audioContextRef = useRef<AudioContext | null>(null)
-  const audioQueueRef = useRef<ArrayBuffer[]>([])
-  const isPlayingRef = useRef(false)
-
-  // Initialize audio context for playback
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      audioContextRef.current = new AudioContext()
-    }
-    return () => {
-      void audioContextRef.current?.close().catch(() => {
-        // Ignore errors on close
-      })
-    }
-  }, [])
-
-  // Play audio queue
-  const playAudioQueue = useCallback(async () => {
-    if (!audioContextRef.current || isPlayingRef.current) return
-
-    isPlayingRef.current = true
-    setMicState("speaking")
-
-    while (audioQueueRef.current.length > 0) {
-      const audioData = audioQueueRef.current.shift()
-      if (!audioData || !audioContextRef.current) break
-
-      try {
-        // Decode audio data
-        const audioBuffer = await audioContextRef.current.decodeAudioData(audioData.slice(0))
-        const source = audioContextRef.current.createBufferSource()
-        source.buffer = audioBuffer
-        source.connect(audioContextRef.current.destination)
-
-        await new Promise<void>((resolve) => {
-          source.onended = () => resolve()
-          source.start(0)
-        })
-      } catch (error) {
-        console.error("Error playing audio:", error)
-      }
-    }
-
-    isPlayingRef.current = false
-    setMicState((prev) => (prev === "speaking" ? "idle" : prev))
-  }, [])
-
-  // Handle incoming voice data - play it back
-  const handleVoiceData = useCallback(
-    (data: ArrayBuffer) => {
-      if (!audioContextRef.current) return
-
-      // Add to queue
-      audioQueueRef.current.push(data)
-
-      // If not already playing, start playback
-      if (!isPlayingRef.current) {
-        void playAudioQueue()
-      }
-    },
-    [playAudioQueue],
-  )
-
-  const { sendVoiceData, isConnected } = useVoice({
-    onVoiceData: handleVoiceData,
-    onError: (error) => {
-      console.error("Voice error:", error)
+  const { isConnected, startStreaming, stopStreaming, isRecording, connect } = useVoice({
+    onError: (err: unknown) => {
+      console.error("Voice error:", err)
       setMicState("idle")
+      const errorObj =
+        typeof err === "object" && err !== null ? (err as { name?: string; message?: string }) : {}
+      const name = errorObj.name
+      const message = errorObj.message
+      const isPermission = name === "NotAllowedError" || /permission/i.test(message ?? "")
+      if (isPermission) {
+        toast.error("Microphone permission is blocked", {
+          description:
+            "Click the camera/microphone icon in your browser's address bar and choose Allow, then reload and try again.",
+          action: {
+            label: "Learn how",
+            onClick: () => {
+              // Simple cross-browser hint page
+              window.open("https://support.google.com/chrome/answer/2693767?hl=en", "_blank")
+            },
+          },
+        })
+      } else {
+        toast.error("Could not access microphone", {
+          description: message ?? "Please try again.",
+        })
+      }
     },
   })
+  const [micState, setMicState] = useState<MicState>("idle")
 
-  const startRecording = useCallback(async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      const mediaRecorder = new MediaRecorder(stream, {
-        mimeType: "audio/webm;codecs=opus",
-      })
-
-      mediaRecorderRef.current = mediaRecorder
-
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0 && isConnected) {
-          // Convert Blob to ArrayBuffer and send
-          void event.data.arrayBuffer().then((buffer) => {
-            sendVoiceData(buffer)
-          })
-        }
-      }
-
-      mediaRecorder.onstop = () => {
-        stream.getTracks().forEach((track) => track.stop())
-        setMicState("processing")
-        // Reset to idle after a short delay
-        setTimeout(() => {
-          setMicState("idle")
-        }, 1000)
-      }
-
-      mediaRecorder.start(100) // Send chunks every 100ms
-      setMicState("listening")
-    } catch (error) {
-      console.error("Error starting recording:", error)
-      setMicState("idle")
-    }
-  }, [sendVoiceData, isConnected])
-
-  const stopRecording = useCallback(() => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
-      mediaRecorderRef.current.stop()
-    }
-  }, [])
+  useEffect(() => {
+    // reserved for future side effects related to recording state
+  }, [isRecording])
 
   const handleMicClick = useCallback(() => {
-    if (micState === "idle") {
-      void startRecording()
-    } else if (micState === "listening") {
-      stopRecording()
+    if (!isConnected) {
+      connect()
+      return
     }
-  }, [micState, startRecording, stopRecording])
+    if (isRecording) {
+      stopStreaming()
+      setMicState("processing")
+      // Simulate brief processing then idle
+      setTimeout(() => setMicState("idle"), 400)
+    } else {
+      void startStreaming(500, {
+        audio: {
+          // Example constraints; let browser pick defaults
+          echoCancellation: true,
+          noiseSuppression: true,
+        },
+      } as unknown as MediaStreamConstraints)
+    }
+  }, [isConnected, isRecording, connect, startStreaming, stopStreaming, setMicState])
 
   return (
     <div className="from-background via-background to-sakura-light/10 relative h-screen w-full overflow-hidden bg-linear-to-b">
       {/* AI Tutor Status */}
-      <AITutorStatus isActive={micState === "speaking"} />
+      <AITutorStatus isActive={false} />
 
       {/* Main Content */}
       <main className="flex h-full flex-col items-center justify-center px-6 pt-24 pb-32">
         {/* Conversation Messages */}
-        <ConversationMessages messages={messages} isAISpeaking={micState === "speaking"} />
+        <ConversationMessages messages={messages} isAISpeaking={false} />
 
         {/* Microphone Orb */}
         <div className="mt-auto">
-          <MicrophoneOrb state={micState} onClick={handleMicClick} />
+          <MicrophoneOrb state={isRecording ? "listening" : micState} onClick={handleMicClick} />
         </div>
       </main>
 

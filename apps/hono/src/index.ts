@@ -71,6 +71,8 @@ io.use(async (socket, next) => {
       return next(new Error("Unauthorized"))
     }
 
+    console.log('JWT KEY', process.env.CLERK_JWT_KEY)
+
     const verified = await verifyToken(token, {
       jwtKey: process.env.CLERK_JWT_KEY,
       authorizedParties:

@@ -33,14 +33,10 @@ export default function ConversationPage() {
   ])
 
   const { isConnected, startStreaming, stopStreaming, isRecording, connect } = useVoice({
-    onError: (err: unknown) => {
+    onError: (err) => {
       console.error("Voice error:", err)
       setMicState("idle")
-      const errorObj =
-        typeof err === "object" && err !== null ? (err as { name?: string; message?: string }) : {}
-      const name = errorObj.name
-      const message = errorObj.message
-      const isPermission = name === "NotAllowedError" || /permission/i.test(message ?? "")
+      const isPermission = err.name === "NotAllowedError" || /permission/i.test(err.message ?? "")
       if (isPermission) {
         toast.error("Microphone permission is blocked", {
           description:
@@ -54,8 +50,8 @@ export default function ConversationPage() {
           },
         })
       } else {
-        toast.error("Could not access microphone", {
-          description: message ?? "Please try again.",
+        toast.error("Websocket error occured", {
+          description: err.message,
         })
       }
     },
@@ -77,13 +73,7 @@ export default function ConversationPage() {
       // Simulate brief processing then idle
       setTimeout(() => setMicState("idle"), 400)
     } else {
-      void startStreaming(500, {
-        audio: {
-          // Example constraints; let browser pick defaults
-          echoCancellation: true,
-          noiseSuppression: true,
-        },
-      } as unknown as MediaStreamConstraints)
+      void startStreaming(500)
     }
   }, [isConnected, isRecording, connect, startStreaming, stopStreaming, setMicState])
 

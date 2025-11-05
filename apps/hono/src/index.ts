@@ -71,12 +71,14 @@ io.use(async (socket, next) => {
       return next(new Error("Unauthorized"))
     }
 
-    console.log('JWT KEY', process.env.CLERK_JWT_KEY)
+    console.log("JWT KEY", process.env.CLERK_JWT_KEY)
 
     const verified = await verifyToken(token, {
       jwtKey: process.env.CLERK_JWT_KEY,
       authorizedParties:
-        process.env.NODE_ENV === "development" ? ["http://localhost:3001"] : [process.env.FRONTEND_URL].filter((i) => i != null),
+        process.env.NODE_ENV === "development"
+          ? ["http://localhost:3001"]
+          : [process.env.FRONTEND_URL].filter((i) => i != null),
     })
 
     const userId = (verified as unknown as { sub?: string }).sub
@@ -103,17 +105,20 @@ io.on("connection", (socket) => {
   })
 
   // jnaudiostream: receive header and buffers
-  socket.on("bufferHeader", (packet: { mimeType: string; data: ArrayBuffer | Buffer | Blob }) => {
+  socket.on("bufferHeader", (packet: { mimeType: string; data: Blob; startTime: number }) => {
     // Optionally store per-socket header
     ;(socket.data as { audioHeader?: unknown }).audioHeader = packet
     // Echo back to sender and broadcast to others if desired
-    console.log(`[Socket.IO] Received buffer header: ${packet.mimeType}`)
+    console.log(`[Socket.IO] Received buffer header:`)
+    console.log(`[Socket.IO] mimeType: ${packet.mimeType}`)
+    console.log(`[Socket.IO] data size: ${packet.data.size} bytes`)
+    console.log(`[Socket.IO] startTime: ${packet.startTime}`)
     socket.emit("bufferHeader", packet)
   })
 
-  socket.on("stream", (packet: Array<ArrayBuffer | Buffer | Blob>) => {
+  socket.on("stream", (packet: [Blob, number]) => {
     // Echo back to sender and broadcast to others
-    console.log(`[Socket.IO] Received stream: ${packet.length} packets`)
+    console.log(`[Socket.IO] Received blob: ${packet[0].size} bytes`)
     socket.emit("stream", packet)
   })
 

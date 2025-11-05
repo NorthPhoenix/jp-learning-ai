@@ -74,7 +74,7 @@ io.use(async (socket, next) => {
     const verified = await verifyToken(token, {
       jwtKey: process.env.CLERK_JWT_KEY,
       authorizedParties:
-        process.env.NODE_ENV === "development" ? ["http://localhost:3001"] : undefined,
+        process.env.NODE_ENV === "development" ? ["http://localhost:3001"] : [process.env.FRONTEND_URL].filter((i) => i != null),
     })
 
     const userId = (verified as unknown as { sub?: string }).sub

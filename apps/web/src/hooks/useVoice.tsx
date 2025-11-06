@@ -1,13 +1,72 @@
 "use client"
 
-import { useEffect, useRef, useCallback, useState } from "react"
+import { useEffect, useRef, useCallback, useState, useMemo } from "react"
 import { io, type Socket } from "socket.io-client"
 // Use dynamic import for jnaudiostream to avoid type resolution issues during lint/build
 import { useAuth } from "@clerk/nextjs"
 import { env } from "~/env"
-import { AudioRecorder, AudioStreamer, type Options } from "jnaudiostream"
+import { AudioStreamer, type Options } from "jnaudiostream"
+import { AudioRecorder } from "~/lib/AudioRecorder"
 
 type ConnectionState = "disconnected" | "connecting" | "connected" | "error"
+
+// Color mapping for console.log tags
+const LOG_TAG_COLORS: Record<string, string> = {
+  // SocketIOManager methods - Blue-green spectrum
+  "[SocketIOManager.constructor]": "#0066cc",
+  "[SocketIOManager.setTokenGetter]": "#0080cc",
+  "[SocketIOManager.setState]": "#0099cc",
+  "[SocketIOManager.connect]": "#00aacc",
+  "[SocketIOManager.disconnect]": "#00bbcc",
+  "[SocketIOManager.startStreaming]": "#00cccc",
+  "[SocketIOManager.stopStreaming]": "#00bbaa",
+  "[SocketIOManager.isRecording]": "#00aa99",
+  "[SocketIOManager.ensureStreamer]": "#009988",
+  "[SocketIOManager.resetStreamer]": "#008877",
+  "[SocketIOManager.subscribeState]": "#007766",
+  "[SocketIOManager.subscribeMessages]": "#2288aa",
+  "[SocketIOManager.subscribeRecording]": "#44aa88",
+  "[SocketIOManager.subscribeTransition]": "#66bb88",
+  "[SocketIOManager.notifyTransitionSubscribers]": "#88cc99",
+  "[SocketIOManager.subscribeErrors]": "#aaddaa",
+  "[SocketIOManager.incrementHookCount]": "#66dd88",
+  "[SocketIOManager.decrementHookCount]": "#44cc99",
+  "[SocketIOManager.getActiveHookCount]": "#22bbaa",
+  "[SocketIOManager.getState]": "#44ccbb",
+  "[SocketIOManager.isConnected]": "#66ddcc",
+  // SocketIOManager event handlers - Purple spectrum
+  "[SocketIOManager|on('connect')]": "#6600cc",
+  "[SocketIOManager|on('disconnect')]": "#7700dd",
+  "[SocketIOManager|on('connect_error')]": "#8800ee",
+  "[SocketIOManager|on('bufferHeader')]": "#9900ff",
+  "[SocketIOManager|on('stream')]": "#aa00ff",
+  // SocketIOManager.startStreaming sub-handlers
+  "[SocketIOManager.startStreaming|handleHeader]": "#bb00ff",
+  "[SocketIOManager.startStreaming|handleBuffer]": "#cc00ff",
+  "[SocketIOManager.startStreaming|handleRecordingStateChange]": "#dd00ff",
+  // useVoice hooks - Orange-red spectrum
+  "[useVoice|useEffect]": "#ff6600",
+  "[useVoice|tokenGetter]": "#ff5500",
+  "[useVoice|stateCallback]": "#ff4400",
+  "[useVoice|messageCallback]": "#ff3300",
+  "[useVoice|errorCallback]": "#ff2200",
+  "[useVoice|recordingCallback]": "#ff1100",
+  "[useVoice|transitionCallback]": "#ff0000",
+  "[useVoice.startStreaming]": "#ff0066",
+  "[useVoice.stopStreaming]": "#ff0055",
+  "[useVoice.connect]": "#ff0044",
+  "[useVoice.disconnect]": "#ff0033",
+}
+
+// Helper function to format console.log with colored tag
+function formatLog(
+  tag: string,
+  message: string,
+  ...args: unknown[]
+): [string, string, ...unknown[]] {
+  const color = LOG_TAG_COLORS[tag] ?? "#666666"
+  return [`%c${tag}%c ${message}`, `color: ${color}`, "", ...args]
+}
 
 interface UseVoiceOptions {
   onVoiceData?: (data: ArrayBuffer) => void
@@ -31,52 +90,75 @@ class SocketIOManager {
   private recorder: AudioRecorder | null = null
   private streamer: AudioStreamer | null = null
   private recordingSubscribers = new Set<(recording: boolean) => void>()
+  private transitionSubscribers = new Set<(transitioning: boolean) => void>()
   private shouldPlayOnHeader = false
   private starting = false
-  private stopping = false
 
   constructor() {
-    console.log("[SocketIOManager.constructor] Initializing SocketIOManager")
+    console.log(...formatLog("[SocketIOManager.constructor]", "Initializing SocketIOManager"))
     // Determine Socket.IO URL based on current location
     if (!env.NEXT_PUBLIC_WEBSOCKET_SERVER_URL) {
-      console.log("[SocketIOManager.constructor] Socket unavailable - no URL configured")
+      console.log(
+        ...formatLog("[SocketIOManager.constructor]", "Socket unavailable - no URL configured"),
+      )
       this.socketUnavailable = true
       return
     }
     this.url = env.NEXT_PUBLIC_WEBSOCKET_SERVER_URL
-    console.log("[SocketIOManager.constructor] SocketIOManager initialized with URL:", this.url)
+    console.log(
+      ...formatLog(
+        "[SocketIOManager.constructor]",
+        "SocketIOManager initialized with URL:",
+        this.url,
+      ),
+    )
   }
 
   setTokenGetter(getToken: () => Promise<string | null>) {
-    console.log("[SocketIOManager.setTokenGetter] Setting token getter")
+    console.log(...formatLog("[SocketIOManager.setTokenGetter]", "Setting token getter"))
     this.getToken = getToken
   }
 
   private setState(newState: ConnectionState) {
-    console.log("[SocketIOManager.setState] setState() called with newState:", newState)
+    console.log(
+      ...formatLog("[SocketIOManager.setState]", "setState() called with newState:", newState),
+    )
     if (this.state !== newState) {
-      console.log("[SocketIOManager.setState] State changing:", this.state, "->", newState)
+      console.log(
+        ...formatLog("[SocketIOManager.setState]", "State changing:", this.state, "->", newState),
+      )
       this.state = newState
-      console.log("[SocketIOManager.setState] Notifying", this.subscribers.size, "subscribers")
+      console.log(
+        ...formatLog(
+          "[SocketIOManager.setState]",
+          "Notifying",
+          this.subscribers.size,
+          "subscribers",
+        ),
+      )
       this.subscribers.forEach((callback) => callback(newState))
     } else {
-      console.log("[SocketIOManager.setState] State unchanged:", newState)
+      console.log(...formatLog("[SocketIOManager.setState]", "State unchanged:", newState))
     }
   }
 
   async connect() {
     if (this.socketUnavailable) {
-      console.log("[SocketIOManager.connect] Socket is unavailable")
+      console.log(...formatLog("[SocketIOManager.connect]", "Socket is unavailable"))
       return
     }
 
     if (this.socket?.connected) {
-      console.log("[SocketIOManager.connect] Socket is already connected")
+      console.log(...formatLog("[SocketIOManager.connect]", "Socket is already connected"))
+      return
+    }
+    if (this.state === "connecting" || this.state === "connected") {
+      console.log(...formatLog("[SocketIOManager.connect]", "Connection already in progress"))
       return
     }
 
     if (!this.getToken) {
-      console.error("[SocketIOManager.connect] Token getter not set")
+      console.error(...formatLog("[SocketIOManager.connect]", "Token getter not set"))
       this.setState("error")
       return
     }
@@ -88,11 +170,13 @@ class SocketIOManager {
       const token = await this.getToken()
 
       if (!token) {
-        console.error("[SocketIOManager.connect] No authentication token available")
+        console.error(
+          ...formatLog("[SocketIOManager.connect]", "No authentication token available"),
+        )
         throw new Error("No authentication token available")
       }
 
-      console.log("[SocketIOManager.connect] Attempting to connect to:", this.url)
+      console.log(...formatLog("[SocketIOManager.connect]", "Attempting to connect to:", this.url))
 
       // Disconnect existing socket if any
       if (this.socket) {
@@ -113,17 +197,23 @@ class SocketIOManager {
       })
 
       this.socket.on("connect", () => {
-        console.log("[SocketIOManager|on('connect')] Connection opened successfully")
+        console.log(
+          ...formatLog("[SocketIOManager|on('connect')]", "Connection opened successfully"),
+        )
         this.setState("connected")
       })
 
       this.socket.on("disconnect", (reason) => {
-        console.log("[SocketIOManager|on('disconnect')] Connection closed:", reason)
+        console.log(
+          ...formatLog("[SocketIOManager|on('disconnect')]", "Connection closed:", reason),
+        )
         this.setState("disconnected")
       })
 
       this.socket.on("connect_error", (error) => {
-        console.error("[SocketIOManager|on('connect_error')] Connection error:", error)
+        console.error(
+          ...formatLog("[SocketIOManager|on('connect_error')]", "Connection error:", error),
+        )
         this.errorHandlers.forEach((handler) => handler(error))
         this.setState("error")
       })
@@ -133,58 +223,88 @@ class SocketIOManager {
         "bufferHeader",
         async (packet: { mimeType: string; data: ArrayBuffer; startTime: number }) => {
           console.log(
-            "[SocketIOManager|on('bufferHeader')] Received bufferHeader:",
-            packet?.mimeType,
+            ...formatLog(
+              "[SocketIOManager|on('bufferHeader')]",
+              "Received bufferHeader:",
+              packet?.mimeType,
+            ),
           )
           await this.ensureStreamer()
           // Ignore if no active start/recording session (prevents stale events post-stop)
-          const isActive = this.starting || this.isRecording()
+          const isRecording = this.isRecording()
+          const isStarting = this.starting
+          const isActive = isStarting || isRecording
           console.log(
-            "[SocketIOManager|on('bufferHeader')] Active session check - starting:",
-            this.starting,
-            "isRecording:",
-            this.isRecording(),
-            "isActive:",
-            isActive,
+            ...formatLog(
+              "[SocketIOManager|on('bufferHeader')]",
+              "Active session check - starting:",
+              isStarting,
+              "isRecording:",
+              isRecording,
+              "isActive:",
+              isActive,
+            ),
           )
           if (!isActive) {
             console.log(
-              "[SocketIOManager|on('bufferHeader')] No active session, ignoring bufferHeader",
+              ...formatLog(
+                "[SocketIOManager|on('bufferHeader')]",
+                "No active session, ignoring bufferHeader",
+              ),
             )
             return
           }
-          console.log("[SocketIOManager|on('bufferHeader')] Setting buffer header")
+          console.log(...formatLog("[SocketIOManager|on('bufferHeader')]", "Setting buffer header"))
           this.streamer!.setBufferHeader(packet)
           // Begin playback only after header to avoid AbortError from new load during play
           console.log(
-            "[SocketIOManager|on('bufferHeader')] shouldPlayOnHeader:",
-            this.shouldPlayOnHeader,
+            ...formatLog(
+              "[SocketIOManager|on('bufferHeader')]",
+              "shouldPlayOnHeader:",
+              this.shouldPlayOnHeader,
+            ),
           )
           if (this.shouldPlayOnHeader) {
-            console.log("[SocketIOManager|on('bufferHeader')] Attempting to play stream")
+            console.log(
+              ...formatLog("[SocketIOManager|on('bufferHeader')]", "Attempting to play stream"),
+            )
             try {
               this.streamer!.playStream()
               this.shouldPlayOnHeader = false
               console.log(
-                "[SocketIOManager|on('bufferHeader')] Stream playback started successfully",
+                ...formatLog(
+                  "[SocketIOManager|on('bufferHeader')]",
+                  "Stream playback started successfully",
+                ),
               )
             } catch (error) {
               console.log(
-                "[SocketIOManager|on('bufferHeader')] playStream() failed after header, waiting for next user gesture:",
-                error,
+                ...formatLog(
+                  "[SocketIOManager|on('bufferHeader')]",
+                  "playStream() failed after header, waiting for next user gesture:",
+                  error,
+                ),
               )
               const retry = () => {
                 console.log(
-                  "[SocketIOManager|on('bufferHeader')] Retrying playStream on user gesture",
+                  ...formatLog(
+                    "[SocketIOManager|on('bufferHeader')]",
+                    "Retrying playStream on user gesture",
+                  ),
                 )
                 try {
                   this.streamer!.playStream()
                   this.shouldPlayOnHeader = false
-                  console.log("[SocketIOManager|on('bufferHeader')] Retry successful")
+                  console.log(
+                    ...formatLog("[SocketIOManager|on('bufferHeader')]", "Retry successful"),
+                  )
                 } catch (e) {
                   console.log(
-                    "[SocketIOManager|on('bufferHeader')] playStream() retry failed on gesture:",
-                    e,
+                    ...formatLog(
+                      "[SocketIOManager|on('bufferHeader')]",
+                      "playStream() retry failed on gesture:",
+                      e,
+                    ),
                   )
                 } finally {
                   window.removeEventListener("pointerdown", retry, { capture: true })
@@ -202,25 +322,40 @@ class SocketIOManager {
 
       this.socket.on("stream", async (packet: [ArrayBuffer, number]) => {
         console.log(
-          "[SocketIOManager|on('stream')] Received stream packet, ArrayBuffer length:",
-          packet[0].byteLength,
+          ...formatLog(
+            "[SocketIOManager|on('stream')]",
+            "Received stream packet, ArrayBuffer length:",
+            packet[0].byteLength,
+          ),
         )
         await this.ensureStreamer()
         // Ignore if no active start/recording session
-        const isActive = this.starting || this.isRecording()
+        const isRecording = this.isRecording()
+        const isStarting = this.starting
+        const isActive = isStarting || isRecording
         console.log(
-          "[SocketIOManager|on('stream')] Active session check - starting:",
-          this.starting,
-          "isRecording:",
-          this.isRecording(),
-          "isActive:",
-          isActive,
+          ...formatLog(
+            "[SocketIOManager|on('stream')]",
+            "Active session check - starting:",
+            isStarting,
+            "isRecording:",
+            isRecording,
+            "isActive:",
+            isActive,
+          ),
         )
         if (!isActive) {
-          console.log("[SocketIOManager|on('stream')] No active session, ignoring stream packet")
+          console.log(
+            ...formatLog(
+              "[SocketIOManager|on('stream')]",
+              "No active session, ignoring stream packet",
+            ),
+          )
           return
         }
-        console.log("[SocketIOManager|on('stream')] Forwarding stream buffer to streamer")
+        console.log(
+          ...formatLog("[SocketIOManager|on('stream')]", "Forwarding stream buffer to streamer"),
+        )
         this.streamer?.receiveBuffer(packet)
       })
 
@@ -245,311 +380,448 @@ class SocketIOManager {
   }
 
   disconnect() {
-    console.log("[SocketIOManager.disconnect] disconnect() called")
+    console.log(...formatLog("[SocketIOManager.disconnect]", "disconnect() called"))
     if (this.socketUnavailable) {
-      console.log("[SocketIOManager.disconnect] Socket is unavailable")
+      console.log(...formatLog("[SocketIOManager.disconnect]", "Socket is unavailable"))
       return
     }
     if (this.socket) {
-      console.log("[SocketIOManager.disconnect] Disconnecting socket")
+      console.log(...formatLog("[SocketIOManager.disconnect]", "Disconnecting socket"))
       this.socket.disconnect()
       this.socket.removeAllListeners()
       this.socket = null
     } else {
-      console.log("[SocketIOManager.disconnect] No socket to disconnect")
+      console.log(...formatLog("[SocketIOManager.disconnect]", "No socket to disconnect"))
     }
 
     this.setState("disconnected")
     // Ensure audio streamer is stopped/reset as well
     if (this.streamer) {
-      console.log("[SocketIOManager.disconnect] Stopping streamer")
+      console.log(...formatLog("[SocketIOManager.disconnect]", "Stopping streamer"))
       try {
         this.streamer.stop()
       } catch (error) {
-        console.log("[SocketIOManager.disconnect] streamer.stop() failed during disconnect:", error)
+        console.log(
+          ...formatLog(
+            "[SocketIOManager.disconnect]",
+            "streamer.stop() failed during disconnect:",
+            error,
+          ),
+        )
       }
       this.streamer = null
     }
     this.shouldPlayOnHeader = false
-    console.log("[SocketIOManager.disconnect] Disconnect complete")
+    console.log(...formatLog("[SocketIOManager.disconnect]", "Disconnect complete"))
   }
 
   // jnaudiostream: start/stop microphone streaming
   async startStreaming(bufferDurationMs = 500, options?: Options) {
     if (this.socketUnavailable) {
-      console.log("[SocketIOManager.startStreaming] Socket is unavailable")
+      console.log(...formatLog("[SocketIOManager.startStreaming]", "Socket is unavailable"))
       return
     }
-    console.log("[SocketIOManager.startStreaming] startStreaming() called")
-    if (this.starting || this.stopping) {
+    console.log(...formatLog("[SocketIOManager.startStreaming]", "startStreaming() called"))
+    if (this.starting) {
       console.log(
-        "[SocketIOManager.startStreaming] start ignored: transition in progress (starting/stopping)",
+        ...formatLog(
+          "[SocketIOManager.startStreaming]",
+          "start ignored: transition in progress (starting)",
+        ),
       )
       return
     }
     if (this.isRecording()) {
-      console.log("[SocketIOManager.startStreaming] already recording")
+      console.log(...formatLog("[SocketIOManager.startStreaming]", "already recording"))
       return
     }
     if (!this.socket?.connected) {
-      console.log("[SocketIOManager.startStreaming] not connected to socket")
+      console.log(...formatLog("[SocketIOManager.startStreaming]", "not connected to socket"))
       return
     }
 
     // Ensure a fresh streamer for this session; playback will begin after header
-    console.log("[SocketIOManager.startStreaming] resetting streamer")
+    console.log(...formatLog("[SocketIOManager.startStreaming]", "resetting streamer"))
     // Ensure previous recorder (if any) is stopped before starting a new one
     try {
       this.recorder?.stopRecording()
     } catch (error) {
       console.log(
-        "[SocketIOManager.startStreaming] recorder.stopRecording() before restart failed:",
-        error,
+        ...formatLog(
+          "[SocketIOManager.startStreaming]",
+          "recorder.stopRecording() before restart failed:",
+          error,
+        ),
       )
     }
     this.recorder = null
 
     this.starting = true
+    this.notifyTransitionSubscribers()
     await this.resetStreamer()
-    console.log("[SocketIOManager.startStreaming] ensuring streamer")
+    console.log(...formatLog("[SocketIOManager.startStreaming]", "ensuring streamer"))
     await this.ensureStreamer()
     // Mark to start playback when header arrives (safer than playing before header)
     this.shouldPlayOnHeader = true
 
-    console.log("[SocketIOManager.startStreaming] initializing recorder")
+    console.log(...formatLog("[SocketIOManager.startStreaming]", "initializing recorder"))
     // Initialize recorder
     this.recorder = new AudioRecorder(options, bufferDurationMs)
     this.recorder.debug = false
 
     // Header callback (library names vary: support both)
     const handleHeader: AudioRecorder["onReady"] = (packet) => {
-      console.log("[SocketIOManager.startStreaming|handleHeader] Forwarding header to server")
+      console.log(
+        ...formatLog(
+          "[SocketIOManager.startStreaming|handleHeader]",
+          "Forwarding header to server",
+        ),
+      )
       // Forward header to server
       this.socket?.emit("bufferHeader", packet)
     }
 
     const handleBuffer: AudioRecorder["onBuffer"] = (packet) => {
-      console.log("[SocketIOManager.startStreaming|handleBuffer] Forwarding audio chunk to server")
+      console.log(
+        ...formatLog(
+          "[SocketIOManager.startStreaming|handleBuffer]",
+          "Forwarding audio chunk to server",
+        ),
+      )
       // Forward audio chunks to server
       this.socket?.emit("stream", packet)
     }
 
+    const handleRecordingStateChange: AudioRecorder["onRecordingStateChange"] = (recording) => {
+      console.log(
+        ...formatLog(
+          "[SocketIOManager.startStreaming|handleRecordingStateChange]",
+          "Recording state changed:",
+          recording,
+        ),
+      )
+      this.recordingSubscribers.forEach((cb) => cb(recording))
+    }
+
     this.recorder.onReady = handleHeader
     this.recorder.onBuffer = handleBuffer
-
+    this.recorder.onRecordingStateChange = handleRecordingStateChange
     // Streamer already ensured and started above
-    console.log("[SocketIOManager.startStreaming] starting recording")
+    console.log(...formatLog("[SocketIOManager.startStreaming]", "starting recording"))
     try {
       const startRecordingResult = await this.recorder.startRecording()
-      console.log("[SocketIOManager.startStreaming] startRecording() result:", startRecordingResult)
-      const recordingState = this.isRecording()
       console.log(
-        "[SocketIOManager.startStreaming] Recording started successfully, state:",
-        recordingState,
+        ...formatLog(
+          "[SocketIOManager.startStreaming]",
+          "startRecording() result:",
+          startRecordingResult,
+        ),
       )
-      console.log(
-        "[SocketIOManager.startStreaming] Notifying",
-        this.recordingSubscribers.size,
-        "recording subscribers",
-      )
-      this.recordingSubscribers.forEach((cb) => cb(recordingState))
+      if (startRecordingResult) {
+        console.log(
+          ...formatLog(
+            "[SocketIOManager.startStreaming]",
+            "Notifying",
+            this.recordingSubscribers.size,
+            "recording subscribers",
+          ),
+        )
+      }
     } catch (e) {
-      const recordingState = this.isRecording()
-      console.error("[SocketIOManager.startStreaming] Failed to start recording:", e)
-      console.log(
-        "[SocketIOManager.startStreaming] Notifying",
-        this.recordingSubscribers.size,
-        "recording subscribers of error state",
+      console.error(
+        ...formatLog("[SocketIOManager.startStreaming]", "Failed to start recording:", e),
       )
-      this.recordingSubscribers.forEach((cb) => cb(recordingState))
       const err = e instanceof Error ? e : new Error("Failed to start recording.")
       console.log(
-        "[SocketIOManager.startStreaming] Notifying",
-        this.errorHandlers.size,
-        "error handlers",
+        ...formatLog(
+          "[SocketIOManager.startStreaming]",
+          "Notifying",
+          this.errorHandlers.size,
+          "error handlers",
+        ),
       )
       this.errorHandlers.forEach((handler) => handler(err))
       // Best effort stop if partially started
       try {
-        console.log("[SocketIOManager.startStreaming] Attempting to stop recorder after error")
+        console.log(
+          ...formatLog(
+            "[SocketIOManager.startStreaming]",
+            "Attempting to stop recorder after error",
+          ),
+        )
         this.recorder.stopRecording()
       } catch (error) {
         console.log(
-          "[SocketIOManager.startStreaming] recorder.stopRecording() failed after start error:",
-          error,
+          ...formatLog(
+            "[SocketIOManager.startStreaming]",
+            "recorder.stopRecording() failed after start error:",
+            error,
+          ),
         )
       }
     } finally {
-      console.log("[SocketIOManager.startStreaming] Setting starting flag to false")
+      console.log(
+        ...formatLog("[SocketIOManager.startStreaming]", "Setting starting flag to false"),
+      )
       this.starting = false
+      this.notifyTransitionSubscribers()
     }
   }
 
   stopStreaming() {
-    console.log("[SocketIOManager.stopStreaming] stopStreaming() called")
+    console.log(...formatLog("[SocketIOManager.stopStreaming]", "stopStreaming() called"))
     if (this.socketUnavailable) {
-      console.log("[SocketIOManager.stopStreaming] Socket is unavailable")
+      console.log(...formatLog("[SocketIOManager.stopStreaming]", "Socket is unavailable"))
       return
     }
-    if (this.stopping) {
-      console.log("[SocketIOManager.stopStreaming] stop ignored: already stopping")
-      return
-    }
-    this.stopping = true
+
     const wasRecording = this.isRecording()
-    console.log("[SocketIOManager.stopStreaming] Was recording:", wasRecording)
+    console.log(...formatLog("[SocketIOManager.stopStreaming]", "Was recording:", wasRecording))
     if (this.recorder && wasRecording) {
-      console.log("[SocketIOManager.stopStreaming] Stopping recorder")
+      console.log(...formatLog("[SocketIOManager.stopStreaming]", "Stopping recorder"))
       this.recorder.stopRecording()
     } else {
-      console.log("[SocketIOManager.stopStreaming] No recorder or not recording")
+      console.log(...formatLog("[SocketIOManager.stopStreaming]", "No recorder or not recording"))
     }
-    const currentRecordingState = this.isRecording()
-    console.log("[SocketIOManager.stopStreaming] Current recording state:", currentRecordingState)
-    console.log(
-      "[SocketIOManager.stopStreaming] Notifying",
-      this.recordingSubscribers.size,
-      "recording subscribers",
-    )
-    this.recordingSubscribers.forEach((cb) => cb(currentRecordingState))
     // Stop and reset streamer so the next session doesn't interrupt current load/play
     if (this.streamer) {
-      console.log("[SocketIOManager.stopStreaming] Stopping streamer")
+      console.log(...formatLog("[SocketIOManager.stopStreaming]", "Stopping streamer"))
       try {
         this.streamer.stop()
-        console.log("[SocketIOManager.stopStreaming] Streamer stopped successfully")
+        console.log(
+          ...formatLog("[SocketIOManager.stopStreaming]", "Streamer stopped successfully"),
+        )
       } catch (error) {
         console.log(
-          "[SocketIOManager.stopStreaming] streamer.stop() failed during stopStreaming:",
-          error,
+          ...formatLog(
+            "[SocketIOManager.stopStreaming]",
+            "streamer.stop() failed during stopStreaming:",
+            error,
+          ),
         )
       }
       this.streamer = null
     } else {
-      console.log("[SocketIOManager.stopStreaming] No streamer to stop")
+      console.log(...formatLog("[SocketIOManager.stopStreaming]", "No streamer to stop"))
     }
     this.recorder = null
     this.shouldPlayOnHeader = false
-    this.stopping = false
-    console.log("[SocketIOManager.stopStreaming] stopStreaming() complete")
+
+    console.log(...formatLog("[SocketIOManager.stopStreaming]", "stopStreaming() complete"))
   }
 
   isRecording(): boolean {
     const r = this.recorder
     if (!r) {
-      console.log("[SocketIOManager.isRecording] No recorder, returning false")
+      console.log(...formatLog("[SocketIOManager.isRecording]", "No recorder, returning false"))
       return false
     }
     if (typeof r.recording === "boolean") {
-      console.log("[SocketIOManager.isRecording] Recording state:", r.recording)
+      console.log(...formatLog("[SocketIOManager.isRecording]", "Recording state:", r.recording))
       return r.recording
     }
     const mr = r.mediaRecorder
     const isRecording = mr?.state === "recording"
     console.log(
-      "[SocketIOManager.isRecording] MediaRecorder state:",
-      mr?.state,
-      "isRecording:",
-      isRecording,
+      ...formatLog(
+        "[SocketIOManager.isRecording]",
+        "MediaRecorder state:",
+        mr?.state,
+        "isRecording:",
+        isRecording,
+      ),
     )
     return isRecording
   }
 
   private async ensureStreamer() {
-    console.log("[SocketIOManager.ensureStreamer] ensureStreamer() called")
+    console.log(...formatLog("[SocketIOManager.ensureStreamer]", "ensureStreamer() called"))
     if (!this.streamer) {
-      console.log("[SocketIOManager.ensureStreamer] Creating new AudioStreamer")
+      console.log(...formatLog("[SocketIOManager.ensureStreamer]", "Creating new AudioStreamer"))
       this.streamer = new AudioStreamer(1000)
       this.streamer.debug = false
-      console.log("[SocketIOManager.ensureStreamer] AudioStreamer created")
+      console.log(...formatLog("[SocketIOManager.ensureStreamer]", "AudioStreamer created"))
     } else {
-      console.log("[SocketIOManager.ensureStreamer] Streamer already exists")
+      console.log(...formatLog("[SocketIOManager.ensureStreamer]", "Streamer already exists"))
     }
   }
 
   // Stop and discard the current streamer instance, if any
   private async resetStreamer() {
-    console.log("[SocketIOManager.resetStreamer] resetStreamer() called")
+    console.log(...formatLog("[SocketIOManager.resetStreamer]", "resetStreamer() called"))
     if (this.streamer) {
-      console.log("[SocketIOManager.resetStreamer] Stopping existing streamer")
+      console.log(...formatLog("[SocketIOManager.resetStreamer]", "Stopping existing streamer"))
       try {
         this.streamer.stop()
-        console.log("[SocketIOManager.resetStreamer] Streamer stopped successfully")
+        console.log(
+          ...formatLog("[SocketIOManager.resetStreamer]", "Streamer stopped successfully"),
+        )
       } catch (error) {
         console.log(
-          "[SocketIOManager.resetStreamer] streamer.stop() failed during resetStreamer():",
-          error,
+          ...formatLog(
+            "[SocketIOManager.resetStreamer]",
+            "streamer.stop() failed during resetStreamer():",
+            error,
+          ),
         )
       }
       this.streamer = null
     } else {
-      console.log("[SocketIOManager.resetStreamer] No streamer to reset")
+      console.log(...formatLog("[SocketIOManager.resetStreamer]", "No streamer to reset"))
     }
   }
 
   subscribeState(callback: (state: ConnectionState) => void) {
     console.log(
-      "[SocketIOManager.subscribeState] subscribeState() called, current subscribers:",
-      this.subscribers.size,
+      ...formatLog(
+        "[SocketIOManager.subscribeState]",
+        "subscribeState() called, current subscribers:",
+        this.subscribers.size,
+      ),
     )
     this.subscribers.add(callback)
     // Immediately call with current state
-    console.log("[SocketIOManager.subscribeState] Calling callback with initial state:", this.state)
+    console.log(
+      ...formatLog(
+        "[SocketIOManager.subscribeState]",
+        "Calling callback with initial state:",
+        this.state,
+      ),
+    )
     callback(this.state)
-    console.log("[SocketIOManager.subscribeState] Subscriber added, total:", this.subscribers.size)
+    console.log(
+      ...formatLog(
+        "[SocketIOManager.subscribeState]",
+        "Subscriber added, total:",
+        this.subscribers.size,
+      ),
+    )
     return () => {
-      console.log("[SocketIOManager.subscribeState] Unsubscribing state callback")
+      console.log(...formatLog("[SocketIOManager.subscribeState]", "Unsubscribing state callback"))
       this.subscribers.delete(callback)
     }
   }
 
   subscribeMessages(callback: (data: ArrayBuffer) => void) {
     console.log(
-      "[SocketIOManager.subscribeMessages] subscribeMessages() called, current handlers:",
-      this.messageHandlers.size,
+      ...formatLog(
+        "[SocketIOManager.subscribeMessages]",
+        "subscribeMessages() called, current handlers:",
+        this.messageHandlers.size,
+      ),
     )
     this.messageHandlers.add(callback)
     console.log(
-      "[SocketIOManager.subscribeMessages] Handler added, total:",
-      this.messageHandlers.size,
+      ...formatLog(
+        "[SocketIOManager.subscribeMessages]",
+        "Handler added, total:",
+        this.messageHandlers.size,
+      ),
     )
     return () => {
-      console.log("[SocketIOManager.subscribeMessages] Unsubscribing message handler")
+      console.log(
+        ...formatLog("[SocketIOManager.subscribeMessages]", "Unsubscribing message handler"),
+      )
       this.messageHandlers.delete(callback)
     }
   }
 
   subscribeRecording(callback: (recording: boolean) => void) {
     console.log(
-      "[SocketIOManager.subscribeRecording] subscribeRecording() called, current subscribers:",
-      this.recordingSubscribers.size,
+      ...formatLog(
+        "[SocketIOManager.subscribeRecording]",
+        "subscribeRecording() called, current subscribers:",
+        this.recordingSubscribers.size,
+      ),
     )
     this.recordingSubscribers.add(callback)
     const currentRecording = this.isRecording()
     console.log(
-      "[SocketIOManager.subscribeRecording] Calling callback with initial recording state:",
-      currentRecording,
+      ...formatLog(
+        "[SocketIOManager.subscribeRecording]",
+        "Calling callback with initial recording state:",
+        currentRecording,
+      ),
     )
     callback(currentRecording)
     console.log(
-      "[SocketIOManager.subscribeRecording] Subscriber added, total:",
-      this.recordingSubscribers.size,
+      ...formatLog(
+        "[SocketIOManager.subscribeRecording]",
+        "Subscriber added, total:",
+        this.recordingSubscribers.size,
+      ),
     )
     return () => {
-      console.log("[SocketIOManager.subscribeRecording] Unsubscribing recording callback")
+      console.log(
+        ...formatLog("[SocketIOManager.subscribeRecording]", "Unsubscribing recording callback"),
+      )
       this.recordingSubscribers.delete(callback)
     }
   }
 
+  subscribeTransition(callback: (transitioning: boolean) => void) {
+    console.log(
+      ...formatLog(
+        "[SocketIOManager.subscribeTransition]",
+        "subscribeTransition() called, current subscribers:",
+        this.transitionSubscribers.size,
+      ),
+    )
+    this.transitionSubscribers.add(callback)
+    console.log(
+      ...formatLog(
+        "[SocketIOManager.subscribeTransition]",
+        "Calling callback with initial transition state:",
+        this.starting,
+      ),
+    )
+    callback(this.starting)
+    console.log(
+      ...formatLog(
+        "[SocketIOManager.subscribeTransition]",
+        "Subscriber added, total:",
+        this.transitionSubscribers.size,
+      ),
+    )
+    return () => {
+      console.log(
+        ...formatLog("[SocketIOManager.subscribeTransition]", "Unsubscribing transition callback"),
+      )
+      this.transitionSubscribers.delete(callback)
+    }
+  }
+
+  private notifyTransitionSubscribers() {
+    console.log(
+      ...formatLog(
+        "[SocketIOManager.notifyTransitionSubscribers]",
+        "Notifying",
+        this.transitionSubscribers.size,
+        "transition subscribers with state:",
+        this.starting,
+      ),
+    )
+    this.transitionSubscribers.forEach((callback) => callback(this.starting))
+  }
+
   subscribeErrors(callback: (error: Error) => void) {
     console.log(
-      "[SocketIOManager.subscribeErrors] subscribeErrors() called, current handlers:",
-      this.errorHandlers.size,
+      ...formatLog(
+        "[SocketIOManager.subscribeErrors]",
+        "subscribeErrors() called, current handlers:",
+        this.errorHandlers.size,
+      ),
     )
     this.errorHandlers.add(callback)
-    console.log("[SocketIOManager.subscribeErrors] Handler added, total:", this.errorHandlers.size)
+    console.log(
+      ...formatLog(
+        "[SocketIOManager.subscribeErrors]",
+        "Handler added, total:",
+        this.errorHandlers.size,
+      ),
+    )
     return () => {
-      console.log("[SocketIOManager.subscribeErrors] Unsubscribing error handler")
+      console.log(...formatLog("[SocketIOManager.subscribeErrors]", "Unsubscribing error handler"))
       this.errorHandlers.delete(callback)
     }
   }
@@ -557,47 +829,47 @@ class SocketIOManager {
   // Increment hook usage counter
   incrementHookCount() {
     console.log(
-      "[SocketIOManager.incrementHookCount] incrementHookCount() called, current:",
-      this.activeHooks,
+      ...formatLog(
+        "[SocketIOManager.incrementHookCount]",
+        "incrementHookCount() called, current:",
+        this.activeHooks,
+      ),
     )
     this.activeHooks++
-    console.log("[SocketIOManager.incrementHookCount] Active hooks now:", this.activeHooks)
+    console.log(
+      ...formatLog("[SocketIOManager.incrementHookCount]", "Active hooks now:", this.activeHooks),
+    )
   }
 
   // Decrement hook usage counter and disconnect if no hooks remain
   decrementHookCount() {
     console.log(
-      "[SocketIOManager.decrementHookCount] decrementHookCount() called, current:",
-      this.activeHooks,
+      ...formatLog(
+        "[SocketIOManager.decrementHookCount]",
+        "decrementHookCount() called, current:",
+        this.activeHooks,
+      ),
     )
     this.activeHooks--
     if (this.activeHooks <= 0) {
-      console.log("[SocketIOManager.decrementHookCount] No active hooks remaining, disconnecting")
+      console.log(
+        ...formatLog(
+          "[SocketIOManager.decrementHookCount]",
+          "No active hooks remaining, disconnecting",
+        ),
+      )
       this.activeHooks = 0 // Prevent negative counts
       // Disconnect when no hooks are using the connection
       this.disconnect()
     } else {
-      console.log("[SocketIOManager.decrementHookCount] Active hooks remaining:", this.activeHooks)
+      console.log(
+        ...formatLog(
+          "[SocketIOManager.decrementHookCount]",
+          "Active hooks remaining:",
+          this.activeHooks,
+        ),
+      )
     }
-  }
-
-  getActiveHookCount(): number {
-    console.log(
-      "[SocketIOManager.getActiveHookCount] getActiveHookCount() called, returning:",
-      this.activeHooks,
-    )
-    return this.activeHooks
-  }
-
-  getState(): ConnectionState {
-    console.log("[SocketIOManager.getState] getState() called, returning:", this.state)
-    return this.state
-  }
-
-  isConnected(): boolean {
-    const connected = this.socket?.connected ?? false
-    console.log("[SocketIOManager.isConnected] isConnected() called, returning:", connected)
-    return connected
   }
 }
 
@@ -610,13 +882,14 @@ const useVoice = (options: UseVoiceOptions = {}) => {
 
   const [connectionState, setConnectionState] = useState<ConnectionState>("disconnected")
   const [recording, setRecording] = useState(false)
+  const [isTransitioning, setIsTransitioning] = useState(false)
   const onVoiceDataRef = useRef(onVoiceData)
   const onErrorRef = useRef(onError)
   const onStateChangeRef = useRef(onStateChange)
 
   // Keep refs updated
   useEffect(() => {
-    console.log("[useVoice|useEffect] Updating callback refs")
+    console.log(...formatLog("[useVoice|useEffect]", "Updating callback refs"))
     onVoiceDataRef.current = onVoiceData
     onErrorRef.current = onError
     onStateChangeRef.current = onStateChange
@@ -624,16 +897,18 @@ const useVoice = (options: UseVoiceOptions = {}) => {
 
   // Set token getter when available
   useEffect(() => {
-    console.log("[useVoice|useEffect] Setting token getter, getToken available:", !!getToken)
+    console.log(
+      ...formatLog("[useVoice|useEffect]", "Setting token getter, getToken available:", !!getToken),
+    )
     if (getToken) {
       socketManager.setTokenGetter(async () => {
-        console.log("[useVoice|tokenGetter] Getting token")
+        console.log(...formatLog("[useVoice|tokenGetter]", "Getting token"))
         try {
           const token = await getToken()
-          console.log("[useVoice|tokenGetter] Token retrieved:", !!token)
+          console.log(...formatLog("[useVoice|tokenGetter]", "Token retrieved:", !!token))
           return token
         } catch (error) {
-          console.error("[useVoice|tokenGetter] Failed to get token:", error)
+          console.error(...formatLog("[useVoice|tokenGetter]", "Failed to get token:", error))
           return null
         }
       })
@@ -642,15 +917,15 @@ const useVoice = (options: UseVoiceOptions = {}) => {
 
   // Subscribe to connection state changes
   useEffect(() => {
-    console.log("[useVoice|useEffect] Subscribing to connection state changes")
+    console.log(...formatLog("[useVoice|useEffect]", "Subscribing to connection state changes"))
     const unsubscribe = socketManager.subscribeState((state) => {
-      console.log("[useVoice|stateCallback] Connection state changed:", state)
+      console.log(...formatLog("[useVoice|stateCallback]", "Connection state changed:", state))
       setConnectionState(state)
       onStateChangeRef.current?.(state)
     })
 
     return () => {
-      console.log("[useVoice|useEffect] Cleaning up connection state subscription")
+      console.log(...formatLog("[useVoice|useEffect]", "Cleaning up connection state subscription"))
       unsubscribe()
     }
   }, [])
@@ -658,21 +933,28 @@ const useVoice = (options: UseVoiceOptions = {}) => {
   // Subscribe to incoming voice data
   useEffect(() => {
     console.log(
-      "[useVoice|useEffect] Setting up voice data subscription, has callback:",
-      !!onVoiceDataRef.current,
+      ...formatLog(
+        "[useVoice|useEffect]",
+        "Setting up voice data subscription, has callback:",
+        !!onVoiceDataRef.current,
+      ),
     )
     if (!onVoiceDataRef.current) {
-      console.log("[useVoice|useEffect] No voice data callback, skipping subscription")
+      console.log(
+        ...formatLog("[useVoice|useEffect]", "No voice data callback, skipping subscription"),
+      )
       return
     }
 
     const unsubscribe = socketManager.subscribeMessages((data) => {
-      console.log("[useVoice|messageCallback] Received voice data, size:", data.byteLength)
+      console.log(
+        ...formatLog("[useVoice|messageCallback]", "Received voice data, size:", data.byteLength),
+      )
       onVoiceDataRef.current?.(data)
     })
 
     return () => {
-      console.log("[useVoice|useEffect] Cleaning up voice data subscription")
+      console.log(...formatLog("[useVoice|useEffect]", "Cleaning up voice data subscription"))
       unsubscribe()
     }
   }, [])
@@ -680,81 +962,119 @@ const useVoice = (options: UseVoiceOptions = {}) => {
   // Subscribe to errors
   useEffect(() => {
     console.log(
-      "[useVoice|useEffect] Setting up error subscription, has callback:",
-      !!onErrorRef.current,
+      ...formatLog(
+        "[useVoice|useEffect]",
+        "Setting up error subscription, has callback:",
+        !!onErrorRef.current,
+      ),
     )
     if (!onErrorRef.current) {
-      console.log("[useVoice|useEffect] No error callback, skipping subscription")
+      console.log(...formatLog("[useVoice|useEffect]", "No error callback, skipping subscription"))
       return
     }
 
     const unsubscribe = socketManager.subscribeErrors((error) => {
-      console.log("[useVoice|errorCallback] Error received:", error.message)
+      console.log(...formatLog("[useVoice|errorCallback]", "Error received:", error.message))
       onErrorRef.current?.(error)
     })
 
     return () => {
-      console.log("[useVoice|useEffect] Cleaning up error subscription")
+      console.log(...formatLog("[useVoice|useEffect]", "Cleaning up error subscription"))
       unsubscribe()
     }
   }, [])
 
   // Subscribe to recording state changes
   useEffect(() => {
-    console.log("[useVoice|useEffect] Subscribing to recording state changes")
+    console.log(...formatLog("[useVoice|useEffect]", "Subscribing to recording state changes"))
     const unsubscribe = socketManager.subscribeRecording((r) => {
-      console.log("[useVoice|recordingCallback] Recording state changed:", r)
+      console.log(...formatLog("[useVoice|recordingCallback]", "Recording state changed:", r))
       setRecording(r)
     })
     return () => {
-      console.log("[useVoice|useEffect] Cleaning up recording state subscription")
+      console.log(...formatLog("[useVoice|useEffect]", "Cleaning up recording state subscription"))
+      unsubscribe()
+    }
+  }, [])
+
+  // Subscribe to transition state changes
+  useEffect(() => {
+    console.log(...formatLog("[useVoice|useEffect]", "Subscribing to transition state changes"))
+    const unsubscribe = socketManager.subscribeTransition((transitioning) => {
+      console.log(
+        ...formatLog("[useVoice|transitionCallback]", "Transition state changed:", transitioning),
+      )
+      setIsTransitioning(transitioning)
+    })
+    return () => {
+      console.log(...formatLog("[useVoice|useEffect]", "Cleaning up transition state subscription"))
       unsubscribe()
     }
   }, [])
 
   // Track hook instance and manage connection lifecycle
   useEffect(() => {
-    console.log("[useVoice|useEffect] Setting up hook lifecycle, autoConnect:", autoConnect)
+    console.log(
+      ...formatLog("[useVoice|useEffect]", "Setting up hook lifecycle, autoConnect:", autoConnect),
+    )
     socketManager.incrementHookCount()
 
     if (autoConnect) {
-      console.log("[useVoice|useEffect] Auto-connect enabled, connecting...")
+      console.log(...formatLog("[useVoice|useEffect]", "Auto-connect enabled, connecting..."))
       void socketManager.connect()
     } else {
-      console.log("[useVoice|useEffect] Auto-connect disabled, skipping connection")
+      console.log(
+        ...formatLog("[useVoice|useEffect]", "Auto-connect disabled, skipping connection"),
+      )
     }
 
     // Cleanup on unmount - decrement counter and disconnect if last hook
     return () => {
-      console.log("[useVoice|useEffect] Cleaning up hook lifecycle")
+      console.log(...formatLog("[useVoice|useEffect]", "Cleaning up hook lifecycle"))
       socketManager.decrementHookCount()
     }
   }, [autoConnect])
 
   const startStreaming = useCallback((bufferDurationMs?: number, options?: Options) => {
     console.log(
-      "[useVoice.startStreaming] startStreaming() called, bufferDurationMs:",
-      bufferDurationMs,
-      "options:",
-      options,
+      ...formatLog(
+        "[useVoice.startStreaming]",
+        "startStreaming() called, bufferDurationMs:",
+        bufferDurationMs,
+        "options:",
+        options,
+      ),
     )
     return socketManager.startStreaming(bufferDurationMs, options)
   }, [])
 
   const stopStreaming = useCallback(() => {
-    console.log("[useVoice.stopStreaming] stopStreaming() called")
+    console.log(...formatLog("[useVoice.stopStreaming]", "stopStreaming() called"))
     socketManager.stopStreaming()
   }, [])
 
   const connect = useCallback(() => {
-    console.log("[useVoice.connect] connect() called")
+    console.log(...formatLog("[useVoice.connect]", "connect() called"))
     void socketManager.connect()
   }, [])
 
   const disconnect = useCallback(() => {
-    console.log("[useVoice.disconnect] disconnect() called")
+    console.log(...formatLog("[useVoice.disconnect]", "disconnect() called"))
     socketManager.disconnect()
   }, [])
+
+  const micState = useMemo<"idle" | "pending" | "listening">(() => {
+    // "listening" when recording
+    if (recording) {
+      return "listening"
+    }
+    // "pending" during transitions or when connecting
+    if (isTransitioning || connectionState === "connecting") {
+      return "pending"
+    }
+    // "idle" otherwise
+    return "idle"
+  }, [recording, isTransitioning, connectionState])
 
   return {
     connectionState,
@@ -764,6 +1084,7 @@ const useVoice = (options: UseVoiceOptions = {}) => {
     isRecording: recording,
     connect,
     disconnect,
+    micState,
   }
 }
 

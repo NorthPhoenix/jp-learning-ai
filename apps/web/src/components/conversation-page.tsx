@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { Menu } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "~/components/ui/button"
@@ -10,7 +10,7 @@ import { LearningPanel } from "~/components/learning-panel"
 import { AITutorStatus } from "~/components/ai-tutor-status"
 import useVoice from "~/hooks/useVoice"
 
-export type MicState = "idle" | "listening" | "processing" | "speaking"
+export type MicState = "idle" | "listening" | "pending"
 
 export interface Message {
   id: string
@@ -32,10 +32,9 @@ export default function ConversationPage() {
     },
   ])
 
-  const { isConnected, startStreaming, stopStreaming, isRecording, connect } = useVoice({
+  const { connect, startStreaming, stopStreaming, micState, isConnected } = useVoice({
     onError: (err) => {
       console.error("Voice error:", err)
-      setMicState("idle")
       const isPermission = err.name === "NotAllowedError" || /permission/i.test(err.message ?? "")
       if (isPermission) {
         toast.error("Microphone permission is blocked", {
@@ -56,26 +55,24 @@ export default function ConversationPage() {
       }
     },
   })
-  const [micState, setMicState] = useState<MicState>("idle")
-
-  useEffect(() => {
-    // reserved for future side effects related to recording state
-  }, [isRecording])
 
   const handleMicClick = useCallback(() => {
-    if (!isConnected) {
-      connect()
+    if (micState === "pending") {
       return
     }
-    if (isRecording) {
-      stopStreaming()
-      setMicState("processing")
-      // Simulate brief processing then idle
-      setTimeout(() => setMicState("idle"), 400)
-    } else {
-      void startStreaming(500)
+    if (micState === "idle") {
+      if (!isConnected) {
+        void connect()
+        return
+      }
+      void startStreaming()
+      return
     }
-  }, [isConnected, isRecording, connect, startStreaming, stopStreaming, setMicState])
+    if (micState === "listening") {
+      stopStreaming()
+      return
+    }
+  }, [micState, isConnected, connect, startStreaming, stopStreaming])
 
   return (
     <div className="from-background via-background to-sakura-light/10 relative h-screen w-full overflow-hidden bg-linear-to-b">
@@ -89,7 +86,7 @@ export default function ConversationPage() {
 
         {/* Microphone Orb */}
         <div className="mt-auto">
-          <MicrophoneOrb state={isRecording ? "listening" : micState} onClick={handleMicClick} />
+          <MicrophoneOrb state={micState} onClick={handleMicClick} />
         </div>
       </main>
 

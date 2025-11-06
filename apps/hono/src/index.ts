@@ -71,8 +71,6 @@ io.use(async (socket, next) => {
       return next(new Error("Unauthorized"))
     }
 
-    console.log("JWT KEY", process.env.CLERK_JWT_KEY)
-
     const verified = await verifyToken(token, {
       jwtKey: process.env.CLERK_JWT_KEY,
       authorizedParties:
@@ -81,13 +79,7 @@ io.use(async (socket, next) => {
           : [process.env.FRONTEND_URL].filter((i) => i != null),
     })
 
-    const userId = (verified as unknown as { sub?: string }).sub
-    if (!userId) {
-      console.error(`[Socket.IO] No user ID found in verified token`)
-      return next(new Error("Unauthorized"))
-    }
-
-    socket.data.userId = userId
+    socket.data.userId = verified.sub
     return next()
   } catch (err) {
     console.error(`[Socket.IO] Error authenticating socket:`, err)
@@ -118,7 +110,8 @@ io.on("connection", (socket) => {
 
   socket.on("stream", (packet: [Blob, number]) => {
     // Echo back to sender and broadcast to others
-    console.log(`[Socket.IO] Received blob: ${packet[0].size} bytes`)
+    console.log(`[Socket.IO] Received blob: ${typeof packet[0]}`)
+    console.log(`[Socket.IO] packet[1]: ${packet[1]}`)
     socket.emit("stream", packet)
   })
 

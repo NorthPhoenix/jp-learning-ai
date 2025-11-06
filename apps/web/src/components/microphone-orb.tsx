@@ -16,7 +16,10 @@ export function MicrophoneOrb({ state, onClick }: MicrophoneOrbProps) {
       onClick={(e) => {
         e.preventDefault()
         e.stopPropagation()
-        console.log("MicrophoneOrb clicked, state:", state)
+        console.log(
+          `%cMicrophoneOrb clicked, state: ${state}`,
+          "color: #ff0000; font-weight: bold;",
+        )
         onClick()
       }}
       className="focus-visible:ring-ring group relative flex items-center justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
@@ -34,12 +37,12 @@ export function MicrophoneOrb({ state, onClick }: MicrophoneOrbProps) {
       )}
 
       {/* Processing ring */}
-      {state === "processing" && (
+      {state === "pending" && (
         <div className="border-t-sakura border-r-sakura animate-spin-slow absolute h-44 w-44 rounded-full border-2 border-b-transparent border-l-transparent" />
       )}
 
       {/* Speaking waveform */}
-      {state === "speaking" && (
+      {/* {state === "speaking" && (
         <div className="absolute flex items-center justify-center gap-1">
           {[...Array({ length: 5 })].map((_, i) => (
             <div
@@ -52,7 +55,7 @@ export function MicrophoneOrb({ state, onClick }: MicrophoneOrbProps) {
             />
           ))}
         </div>
-      )}
+      )} */}
 
       {/* Main orb */}
       <div
@@ -61,8 +64,8 @@ export function MicrophoneOrb({ state, onClick }: MicrophoneOrbProps) {
           "from-card to-sakura-light bg-linear-to-br shadow-2xl",
           state === "idle" && "animate-pulse-glow",
           state === "listening" && "shadow-sakura/50 scale-110",
-          state === "processing" && "scale-105",
-          state === "speaking" && "scale-105 opacity-90",
+          state === "pending" && "scale-105",
+          // state === "speaking" && "scale-105 opacity-90",
         )}
       >
         <Mic
@@ -70,8 +73,8 @@ export function MicrophoneOrb({ state, onClick }: MicrophoneOrbProps) {
             "h-12 w-12 transition-colors duration-300",
             state === "idle" && "text-muted-foreground",
             state === "listening" && "text-sakura",
-            state === "processing" && "text-sakura",
-            state === "speaking" && "text-sakura",
+            state === "pending" && "text-sakura",
+            // state === "speaking" && "text-sakura",
           )}
         />
       </div>
@@ -80,8 +83,8 @@ export function MicrophoneOrb({ state, onClick }: MicrophoneOrbProps) {
       <div className="text-muted-foreground absolute -bottom-12 text-sm">
         {state === "idle" && "Tap to speak"}
         {state === "listening" && "Listening..."}
-        {state === "processing" && "Processing..."}
-        {state === "speaking" && "AI is speaking"}
+        {state === "pending" && "Processing..."}
+        {/* {state === "speaking" && "AI is speaking"} */}
       </div>
     </button>
   )
